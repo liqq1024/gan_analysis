@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from collections import OrderedDict
 
 import os
 from io import StringIO
@@ -40,32 +41,66 @@ def roc(labels, scores, true_subject, true_gesture, saveto=None):
 
 
 def read_files_name(root_dir):
-    files = os.listdir(root_dir)
+    fnames = os.listdir(root_dir)
     win_sizes = []
-    for fl in files:
-        size = fl.split('_')[1]
+    for fname in fnames:
+        size = fname.split('_')[1]
         win_sizes.append(size)
-    files = np.asarray(files).reshape((-1, 1))
+    files = np.asarray(fnames).reshape((-1, 1))
     win_sizes = np.asarray(win_sizes).reshape((-1, 1))
-    return np.append(files, win_sizes, axis=1)
+    fname_winsize = np.append(files, win_sizes, axis=1)
+    return fname_winsize
 
+def read_data(root_dir, fname_winsize):
+    performance = []
+    for name, ws in fname_winsize:
+       
+        data = pd.read_csv(root_dir+name,index_col=[0])
+        scores = data['scores']
+        labels = data['labels']
+        fpr, tpr, thresholds = roc_curve(labels, scores)
 
-def read_data():
-    name = (', score, sss, ggg, ttt\n'    '0,	0.066044398, 1,	1, 6 \n'    '1,	0.066044398, 1,	1, 6\n'    '2,	0.066044398, 1,	1, 6')
-    print(name)
-    #for name in files_name:
-    data = pd.read_csv(StringIO(name))
-    #print(data)
+        fpr = np.array(fpr).reshape((-1,1))
+        tpr = np.array(tpr).reshape((-1,1))
+        thresholds = np.array(thresholds).reshape((-1,1))
+        rate_triple = np.append(fpr,tpr,axis=1)
+        rate_triple = np.append(rate_triple,thresholds,axis=1)
+        
+        roc_auc = auc(fpr, tpr)
+        rate_triple = OrderedDict([
+            ('winsize', ws), 
+            ('rate_triple', rate_triple), 
+            ('auc', roc_auc)])
+        performance.append(rate_triple)
+    return performance
         	
+def find_threshold(labels, scores):
+    fpr = dict()
+    tpr = dict()
+    thresholds = dict()
+    roc_auc = dict()
 
+    # labels = labels.cpu()
+    # scores = scores.cpu()
+    # True/False Positive Rates.
+    fpr, tpr, thresholds = roc_curve(labels, scores)
+    roc_auc = auc(fpr, tpr)
 
-
-
-
-
-
+    print(fpr[:10])
+    print('~~~~~~~~~~~~~~~~')
+    print(tpr[:10])
+    print('~~~~~~~~~~~~~~~~')
+    print(thresholds[:10])
+    print('~~~~~~~~~~~~~~~~')
+    print(roc_auc)
+    print('~~~~~~~~~~~~~~~~')
 
 
 
 if __name__ == "__main__":
-    read_data()
+    fnames = read_files_name('results_avg_img1/')
+    print(fnames)
+    thisdict = read_data('results_avg_img1/',fnames)
+    print(len(thisdict))
+    for row in thisdict:
+        print(row['auc'])
